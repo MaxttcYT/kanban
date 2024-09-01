@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban Board</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .kanban-board {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .row {
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            width: 400px;
+            height: 90vh;
+            overflow-y: scroll;
+        }
+
+        .task {
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            padding: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .task:hover {
+            background-color: #d0d0d0;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btns button {
+            background-color: rgb(209, 209, 209);
+            color: rgb(0, 0, 0);
+            border: none;
+            padding: 0px;
+            margin: 0px;
+            width: 100%;
+            font-size: 2.5rem;
+        }
+
+        .btns button:hover {
+            background-color: rgb(230, 230, 230);
+        }
+
+        .task.dragged {
+            animation: grabAnimation 0.3s ease alternate;
+        }
+
+        @keyframes grabAnimation {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-5px);
+            }
+        }
+
+        .task-remove-btn {
+            width: 50%;
+            height: 30px;
+            margin: 0;
+            padding: 1px;
+        }
+
+        .task-remove-btn>img {
+            width: 20px;
+            height: 25px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="btns">
+        <button id="addTaskBtn">+</button>
+    </div>
+
+    <div class="kanban-board">
+        <div class="row" id="todo" style="background-color: rgb(255, 255, 255);">
+            <h2>To Do</h2>
+        </div>
+
+        <div class="row" id="inprogress" style="background-color: rgb(255, 255, 255);">
+            <h2>In Progress</h2>
+        </div>
+
+        <div class="row" id="done" style="background-color: rgb(255, 255, 255);">
+            <h2>Done</h2>
+        </div>
+    </div>
+
+    <script>
+        // Load tasks from local storage
+        window.onload = loadTasks;
+
+        function loadTasks() {
+            const savedTasks = JSON.parse(localStorage.getItem('kanbanTasks')) || {
+                todo: [],
+                inprogress: [],
+                done: []
+            };
+
+            Object.keys(savedTasks).forEach(column => {
+                const row = document.getElementById(column);
+                savedTasks[column].forEach(taskText => {
+                    const task = createTask(taskText);
+                    row.appendChild(task);
+                });
+            });
+        }
+
+        function saveTasks() {
+            const tasks = {
+                todo: getTasksFromColumn('todo'),
+                inprogress: getTasksFromColumn('inprogress'),
+                done: getTasksFromColumn('done')
+            };
+            localStorage.setItem('kanbanTasks', JSON.stringify(tasks));
+        }
+
+        function getTasksFromColumn(columnId) {
+            const column = document.getElementById(columnId);
+            return Array.from(column.querySelectorAll('.task > p')).map(task => task.innerText);
+        }
+
+        // Add drag and drop functionality
+        const tasks_removers = document.querySelectorAll('.task > button');
+        const rows = document.querySelectorAll('.row');
+
+        function removeTask(event) {
+            const task = event.target.closest('.task');
+            task.remove();
+            saveTasks();
+        }
+
+        function createTask(taskText) {
+            const newTask = document.createElement('div');
+            const taskTextElem = document.createElement('p');
+            const taskDeleteButton = document.createElement('button');
+
+            taskTextElem.textContent = taskText;
+            taskTextElem.contentEditable = "true";
+            newTask.appendChild(taskTextElem);
+
+            taskDeleteButton.innerHTML = "<img src='./trash.svg' alt='delete'>";
+            taskDeleteButton.classList.add("task-remove-btn");
+            taskDeleteButton.addEventListener('click', removeTask);
+            newTask.appendChild(taskDeleteButton);
+
+            newTask.className = 'task';
+            newTask.draggable = true;
+            newTask.addEventListener('dragstart', dragStart);
+            newTask.addEventListener('dragend', dragEnd);
+            taskTextElem.addEventListener('input', saveTasks); // Save on text change
+
+            return newTask;
+        }
+
+        rows.forEach(row => {
+            row.addEventListener('dragover', dragOver);
+            row.addEventListener('dragenter', dragEnter);
+            row.addEventListener('dragleave', dragLeave);
+            row.addEventListener('drop', drop);
+        });
+
+        let draggedTask = null;
+
+        function dragStart() {
+            draggedTask = this;
+            this.classList.add('dragging'); // Add a class for the animation
+            setTimeout(() => (this.style.display = 'none'), 0);
+        }
+
+        function dragEnd() {
+            this.style.display = 'block';
+            this.classList.remove('dragging');
+            draggedTask = null;
+            saveTasks();
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function dragEnter(e) {
+            e.preventDefault();
+            this.style.backgroundColor = '#e6e6e6';
+        }
+
+        function dragLeave() {
+            this.style.backgroundColor = '#fff';
+        }
+
+        function drop() {
+            this.style.backgroundColor = '#fff';
+            this.appendChild(draggedTask);
+            saveTasks();
+        }
+
+        // Add button functionality
+        const addTaskBtn = document.getElementById('addTaskBtn');
+
+        addTaskBtn.addEventListener('click', addTask);
+
+        function addTask() {
+            var taskText = prompt("New Task Content: ");
+
+            if (taskText == null || taskText == "") { return null }
+
+            const newTask = createTask(taskText);
+
+            // Append the new task to the "To Do" column by default
+            document.getElementById('todo').appendChild(newTask);
+            saveTasks();
+        }
+    </script>
+</body>
+
+</html>
